@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Customer {
+  id           String    @id @default(cuid())
+  waId         String    @unique
+  lang         String    @default("en")
+  savedAddress String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  sessions     Session[]
+  bookings     Booking[]
+}
+
+model Session {
+  id          String   @id @default(cuid())
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  currentNode String   @default("home")
+  lastNode    String   @default("home")
+  draft       Boolean  @default(false)
+  bookingType String?
+  service     String?
+  serviceTe   String?
+  slot        String?
+  slotTe      String?
+  address     String?
+  /// JSON blob for extra draft fields
+  draftJson   String   @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([customerId])
+}
+
+model Booking {
+  id            String   @id @default(cuid())
+  customerId    String
+  customer      Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  type          String // instant | assisted | variable
+  service       String
+  serviceTe     String?
+  slot          String?
+  slotTe        String?
+  address       String?
+  amountPaise   Int      @default(29900)
+  bookStatus    String   @default("—")
+  payStatus     String   @default("—")
+  asgStatus     String   @default("—")
+  refStatus     String   @default("—")
+  supStatus     String   @default("—")
+  professional  String?
+  quoteJson     String?
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  payments      Payment[]
+  otps          Otp[]
+  supportCases  SupportCase[]
+}
+
+model Payment {
+  id         String   @id @default(cuid())
+  bookingId  String
+  booking    Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  provider   String   @default("mock")
+  status     String   @default("created") // created | pending | paid | failed
+  externalId String?
+  amountPaise Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Otp {
+  id        String    @id @default(cuid())
+  bookingId String
+  booking   Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  kind      String // start | complete
+  code      String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model SupportCase {
+  id        String   @id @default(cuid())
+  bookingId String?
+  booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  customerWaId String
+  status    String   @default("opened") // opened | handed_off | closed
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
