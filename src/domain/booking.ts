@@ -1,4 +1,5 @@
-import { prisma } from "../db.js";
+import { and, desc, eq, ilike, not, or } from "drizzle-orm";
+import { db, customers, sessions, bookings, supportCases } from "../db.js";
 import type { BookingType } from "../engine/types.js";
 import type { Pair } from "../engine/i18n.js";
 import { L, type Lang } from "../engine/i18n.js";
@@ -10,19 +11,21 @@ export function amountForType(type: BookingType): number {
 }
 
 export async function ensureCustomer(waId: string, lang: Lang = "en") {
-  return prisma.customer.upsert({
-    where: { waId },
-    create: { waId, lang, savedAddress: "Warangal, Telangana" },
-    update: {},
-  });
+  await db
+    .insert(customers)
+    .values({ waId, lang, savedAddress: "Warangal, Telangana" })
+    .onConflictDoNothing({ target: customers.waId });
+  const [customer] = await db.select().from(customers).where(eq(customers.waId, waId));
+  return customer;
 }
 
 export async function getOrCreateSession(waId: string) {
   const customer = await ensureCustomer(waId);
-  let session = await prisma.session.findUnique({ where: { customerId: customer.id } });
-  if (!session) {
-    session = await prisma.session.create({ data: { customerId: customer.id } });
-  }
+  await db
+    .insert(sessions)
+    .values({ customerId: customer.id })
+    .onConflictDoNothing({ target: sessions.customerId });
+  const [session] = await db.select().from(sessions).where(eq(sessions.customerId, customer.id));
   return { customer, session };
 }
 
@@ -34,8 +37,9 @@ export async function createBooking(input: {
   address: string;
   bookStatus: string;
 }) {
-  return prisma.booking.create({
-    data: {
+  const [booking] = await db
+    .insert(bookings)
+    .values({
       customerId: input.customerId,
       type: input.type,
       service: input.svc[0],
@@ -46,8 +50,9 @@ export async function createBooking(input: {
       amountPaise: amountForType(input.type),
       bookStatus: input.bookStatus,
       active: true,
-    },
-  });
+    })
+    .returning();
+  return booking;
 }
 
 export async function updateBooking(
@@ -63,36 +68,39 @@ export async function updateBooking(
     active: boolean;
   }>
 ) {
-  return prisma.booking.update({ where: { id: bookingId }, data });
+  const [booking] = await db.update(bookings).set(data).where(eq(bookings.id, bookingId)).returning();
+  return booking;
 }
 
 export async function activeBookingForCustomer(customerId: string) {
-  return prisma.booking.findFirst({
-    where: {
-      customerId,
-      active: true,
-      NOT: {
-        OR: [
-          { bookStatus: { contains: "Completed" } },
-          { bookStatus: { contains: "Cancelled" } },
-          { bookStatus: { contains: "declined" } },
-          { bookStatus: { contains: "Closed" } },
-        ],
-      },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const [booking] = await db
+    .select()
+    .from(bookings)
+    .where(
+      and(
+        eq(bookings.customerId, customerId),
+        eq(bookings.active, true),
+        not(
+          or(
+            ilike(bookings.bookStatus, "%Completed%"),
+            ilike(bookings.bookStatus, "%Cancelled%"),
+            ilike(bookings.bookStatus, "%declined%"),
+            ilike(bookings.bookStatus, "%Closed%")
+          )!
+        )
+      )
+    )
+    .orderBy(desc(bookings.createdAt))
+    .limit(1);
+  return booking ?? null;
 }
 
 export async function openSupportCase(waId: string, bookingId: string | null, note?: string) {
-  return prisma.supportCase.create({
-    data: {
-      customerWaId: waId,
-      bookingId: bookingId ?? undefined,
-      status: "opened",
-      note,
-    },
-  });
+  const [supportCase] = await db
+    .insert(supportCases)
+    .values({ customerWaId: waId, bookingId, status: "opened", note })
+    .returning();
+  return supportCase;
 }
 
 export function serviceLabel(lang: Lang, service: string, serviceTe?: string | null) {

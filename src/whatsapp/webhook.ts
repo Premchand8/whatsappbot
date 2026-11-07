@@ -13,7 +13,19 @@ export function verifyWebhook(req: Request, res: Response) {
     res.status(200).send(challenge);
     return;
   }
-  res.sendStatus(403);
+  if (!mode && !token) {
+    // Opened in a browser: explain instead of a bare 403.
+    res
+      .status(200)
+      .type("text/plain")
+      .send(
+        "ReadyLocal WhatsApp webhook is running.\n" +
+          "Meta verifies it with GET ?hub.mode=subscribe&hub.verify_token=...&hub.challenge=...\n" +
+          "and delivers messages with POST. Use this URL as the Callback URL in Meta's WhatsApp configuration."
+      );
+    return;
+  }
+  res.status(403).type("text/plain").send("Verify token mismatch. Check WHATSAPP_VERIFY_TOKEN.");
 }
 
 export function verifySignature(req: Request, res: Response, next: NextFunction) {
@@ -49,9 +61,12 @@ export function verifySignature(req: Request, res: Response, next: NextFunction)
 }
 
 export async function handleWebhook(req: Request, res: Response) {
-  res.sendStatus(200); // ack immediately
+  // Serverless functions stop once the response is sent, so process first, then ack.
   const payload = req.body as WaWebhookPayload;
-  if (payload.object !== "whatsapp_business_account") return;
+  if (payload?.object !== "whatsapp_business_account") {
+    res.sendStatus(200);
+    return;
+  }
 
   for (const entry of payload.entry || []) {
     for (const change of entry.changes || []) {
@@ -81,4 +96,5 @@ export async function handleWebhook(req: Request, res: Response) {
       }
     }
   }
+  res.sendStatus(200);
 }

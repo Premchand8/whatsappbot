@@ -1,7 +1,6 @@
 /**
  * Smoke-test Instant, Assisted, and Variable booking paths in-process.
  */
-import { prisma } from "./db.js";
 import { handleInbound, startConversation } from "./engine/runner.js";
 import { resetConversation } from "./engine/session.js";
 
@@ -83,11 +82,9 @@ async function main() {
   await pathAssisted();
   await pathVariable();
   console.log("\nAll smoke paths passed.");
-  await prisma.$disconnect();
 }
 
 main().catch(async (err) => {
   console.error(err);
-  await prisma.$disconnect();
   process.exit(1);
 });

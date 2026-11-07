@@ -1,0 +1,7 @@
+[build]
+  # Everything is served by the Express app running in a Netlify Function.
+  command = "echo 'No static build step'"
+  publish = "public"
+
+[functions]
+  node_bundler = "esbuild"

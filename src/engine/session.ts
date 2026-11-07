@@ -1,4 +1,5 @@
-import { prisma } from "../db.js";
+import { eq } from "drizzle-orm";
+import { db, customers, sessions } from "../db.js";
 import { getOrCreateSession } from "../domain/booking.js";
 import type { Lang, Pair } from "./i18n.js";
 import type { BookingType, SessionState, StatusTracks, ApplyPatch } from "./types.js";
@@ -61,19 +62,16 @@ export async function saveState(
   state: SessionState & { customerId?: string }
 ): Promise<void> {
   const { customer, session } = await getOrCreateSession(state.waId);
-  await prisma.customer.update({
-    where: { id: customer.id },
-    data: { lang: state.lang },
-  });
+  await db.update(customers).set({ lang: state.lang }).where(eq(customers.id, customer.id));
   const draftJson = JSON.stringify({
     bookingId: state.bookingId,
     tracks: state.tracks,
     svc: state.svc,
     slot: state.slot,
   });
-  await prisma.session.update({
-    where: { id: session.id },
-    data: {
+  await db
+    .update(sessions)
+    .set({
       currentNode: state.current,
       lastNode: state.last,
       draft: state.draft,
@@ -84,8 +82,8 @@ export async function saveState(
       slotTe: state.slot?.[1] ?? null,
       address: state.address,
       draftJson,
-    },
-  });
+    })
+    .where(eq(sessions.id, session.id));
 }
 
 export function applyPatch<T extends SessionState>(state: T, patch?: ApplyPatch | null): T {
@@ -108,9 +106,9 @@ export function applyPatch<T extends SessionState>(state: T, patch?: ApplyPatch 
 
 export async function resetConversation(waId: string): Promise<SessionState & { customerId: string }> {
   const { customer, session } = await getOrCreateSession(waId);
-  await prisma.session.update({
-    where: { id: session.id },
-    data: {
+  await db
+    .update(sessions)
+    .set({
       currentNode: "home",
       lastNode: "home",
       draft: false,
@@ -120,11 +118,11 @@ export async function resetConversation(waId: string): Promise<SessionState & { 
       slot: null,
       slotTe: null,
       draftJson: "{}",
-    },
-  });
+    })
+    .where(eq(sessions.id, session.id));
   return loadState(waId);
 }
 
 export function setLang(waId: string, lang: Lang) {
-  return prisma.customer.update({ where: { waId }, data: { lang } });
+  return db.update(customers).set({ lang }).where(eq(customers.waId, waId));
 }

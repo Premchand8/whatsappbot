@@ -2,7 +2,8 @@ import { Router } from "express";
 import { paymentProvider } from "../domain/payment.js";
 import { handleInbound, startConversation } from "../engine/runner.js";
 import { resetConversation, loadState } from "../engine/session.js";
-import { prisma } from "../db.js";
+import { eq } from "drizzle-orm";
+import { db, payments } from "../db.js";
 
 export const simulateRouter = Router();
 
@@ -31,7 +32,7 @@ simulateRouter.get("/state/:waId", async (req, res) => {
 });
 
 simulateRouter.get("/pay/:paymentId", async (req, res) => {
-  const payment = await prisma.payment.findUnique({ where: { id: req.params.paymentId } });
+  const [payment] = await db.select().from(payments).where(eq(payments.id, req.params.paymentId));
   if (!payment) {
     res.status(404).send("Payment not found");
     return;

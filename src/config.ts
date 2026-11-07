@@ -6,8 +6,8 @@ loadEnv();
 const schema = z.object({
   WHATSAPP_MODE: z.enum(["simulate", "live"]).default("simulate"),
   PORT: z.coerce.number().default(3000),
-  PUBLIC_BASE_URL: z.string().default("http://localhost:3000"),
-  DATABASE_URL: z.string().default("file:./dev.db"),
+  // On Netlify, fall back to the site's own URL so checkout links point at the deployed app.
+  PUBLIC_BASE_URL: z.string().default(process.env.URL || "http://localhost:3000"),
   WHATSAPP_TOKEN: z.string().optional().default(""),
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional().default(""),
   WHATSAPP_VERIFY_TOKEN: z.string().default("readylocal_verify"),
@@ -22,7 +22,7 @@ const schema = z.object({
 const parsed = schema.safeParse(process.env);
 if (!parsed.success) {
   console.error("Invalid environment:", parsed.error.flatten().fieldErrors);
-  process.exit(1);
+  throw new Error("Invalid environment configuration");
 }
 
 export const env = parsed.data;

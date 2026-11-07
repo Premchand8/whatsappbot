@@ -1,17 +1,16 @@
 {
   "name": "whatsappbooking",
   "version": "1.0.0",
-  "description": "ReadyLocal WhatsApp booking bot — simulate locally, go live with Meta Cloud API credentials",
+  "description": "ReadyLocal WhatsApp booking bot \u2014 simulate locally, go live with Meta Cloud API credentials",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "db:migrate": "prisma migrate dev",
-    "db:generate": "prisma generate",
+    "dev": "netlify dev",
+    "typecheck": "tsc",
+    "start": "tsx src/index.ts",
+    "db:migrate": "drizzle-kit generate",
     "smoke": "tsx src/smoke.ts",
-    "postinstall": "prisma generate"
+    "dev:local": "tsx watch src/index.ts"
   },
   "keywords": [
     "whatsapp",
@@ -21,17 +20,20 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@prisma/client": "^5.22.0",
+    "@netlify/database": "^2.0.3",
+    "@netlify/functions": "^6.1.1",
     "cors": "^2.8.6",
     "dotenv": "^18.0.9",
+    "drizzle-orm": "^1.0.0-beta.22",
     "express": "^5.3.0",
+    "serverless-http": "^4.0.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.6",
-    "prisma": "^5.22.0",
+    "drizzle-kit": "^1.0.0-beta.22",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }

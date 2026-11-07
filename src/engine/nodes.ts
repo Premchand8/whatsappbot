@@ -10,7 +10,14 @@ import {
 } from "../domain/booking.js";
 import { paymentProvider } from "../domain/payment.js";
 import { issueOtp } from "../domain/otp.js";
-import { prisma } from "../db.js";
+import { and, desc, eq } from "drizzle-orm";
+import { db, customers, payments, supportCases } from "../db.js";
+
+async function customerByWaId(waId: string) {
+  const [customer] = await db.select().from(customers).where(eq(customers.waId, waId));
+  if (!customer) throw new Error(`Customer ${waId} not found`);
+  return customer;
+}
 
 const isA = (s: SessionState) => s.type === "assisted";
 const svc = (s: SessionState) => (s.svc ? (s.lang === "te" ? s.svc[1] : s.svc[0]) : "Service");
@@ -29,7 +36,7 @@ async function ensureDraftBooking(s: SessionState, bookStatus: string) {
     await updateBooking(s.bookingId, { bookStatus });
     return { book: bookStatus };
   }
-  const customer = await prisma.customer.findUniqueOrThrow({ where: { waId: s.waId } });
+  const customer = await customerByWaId(s.waId);
   const b = await createBooking({
     customerId: customer.id,
     type: s.type,
@@ -90,7 +97,7 @@ export const nodes: Record<string, NodeDef> = {
     messages: [P("Language set to English.", "Language set to English.")],
     effect: async (s) => {
       s.lang = "en";
-      await prisma.customer.update({ where: { waId: s.waId }, data: { lang: "en" } });
+      await db.update(customers).set({ lang: "en" }).where(eq(customers.waId, s.waId));
     },
     auto: { next: "home", delayMs: 400 },
   },
@@ -100,7 +107,7 @@ export const nodes: Record<string, NodeDef> = {
     messages: [P("భాష తెలుగుకు మార్చబడింది.", "భాష తెలుగుకు మార్చబడింది.")],
     effect: async (s) => {
       s.lang = "te";
-      await prisma.customer.update({ where: { waId: s.waId }, data: { lang: "te" } });
+      await db.update(customers).set({ lang: "te" }).where(eq(customers.waId, s.waId));
     },
     auto: { next: "home", delayMs: 400 },
   },
@@ -454,10 +461,12 @@ export const nodes: Record<string, NodeDef> = {
     ],
     effect: async (s) => {
       if (s.bookingId) {
-        const pay = await prisma.payment.findFirst({
-          where: { bookingId: s.bookingId },
-          orderBy: { createdAt: "desc" },
-        });
+        const [pay] = await db
+          .select()
+          .from(payments)
+          .where(eq(payments.bookingId, s.bookingId))
+          .orderBy(desc(payments.createdAt))
+          .limit(1);
         if (pay) await paymentProvider.markResult(pay.id, "paid");
         else
           await updateBooking(s.bookingId, {
@@ -686,7 +695,7 @@ export const nodes: Record<string, NodeDef> = {
     id: "mine",
     messages: [
       async (s) => {
-        const customer = await prisma.customer.findUniqueOrThrow({ where: { waId: s.waId } });
+        const customer = await customerByWaId(s.waId);
         const b = await activeBookingForCustomer(customer.id);
         if (!b && s.tracks.book === "—") {
           return P("You have no bookings yet.", "మీకు ఇంకా బుకింగ్‌లు లేవు.");
@@ -773,10 +782,10 @@ export const nodes: Record<string, NodeDef> = {
     effect: async (s) => {
       await openSupportCase(s.waId, s.bookingId, "Human handoff");
       if (s.bookingId) await updateBooking(s.bookingId, { supStatus: "Handed to agent" });
-      await prisma.supportCase.updateMany({
-        where: { customerWaId: s.waId, status: "opened" },
-        data: { status: "handed_off" },
-      });
+      await db
+        .update(supportCases)
+        .set({ status: "handed_off" })
+        .where(and(eq(supportCases.customerWaId, s.waId), eq(supportCases.status, "opened")));
     },
     options: [{ id: "back", label: backToMenu, next: "home" }],
   },
