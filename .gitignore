@@ -8,3 +8,6 @@ prisma/dev.db-journal
 .DS_Store
 server.log
 *.log
+
+# Local Netlify folder
+.netlify
